@@ -1,0 +1,164 @@
+document.addEventListener('DOMContentLoaded', async () => {
+  const mapContainer = document.getElementById('map-container');
+  const imageContainer = document.getElementById('image-container');
+  const messageArea = document.getElementById('message-area');
+  const restartBtn = document.getElementById('restart-btn');
+  const progressSpan = document.getElementById('progress');
+
+  // Default client-side mapping (filename without ext -> state-id)
+  const localStateMapping = {
+    'taj-mahal': 'uttar-pradesh',
+    'golden-temple': 'punjab',
+    'kerala-backwaters': 'kerala',
+    // add more...
+  };
+
+  // Try to get game config from backend; fallback to local mapping
+  let stateMapping = localStateMapping;
+  try {
+    const res = await fetch('/api/game');
+    if (res.ok) {
+      const data = await res.json();
+      // expected { images: [{name, filename, stateId, alt}], states: [...] }
+      // convert to mapping by filename (without ext)
+      const map = {};
+      data.images.forEach(img => {
+        const key = img.filename.replace(/\.[^.]+$/, '');
+        map[key] = img.stateId;
+      });
+      stateMapping = map;
+      // create a list of images to use from API
+      imagesList = data.images.map(img => ({id: img.name || img.filename.replace(/\.[^.]+$/,''), filename: img.filename, alt: img.alt || img.name || ''}));
+    } else {
+      // fallback
+      imagesList = Object.keys(stateMapping).map(k => ({id: k, filename: `images/${k}.jpg`, alt: k}));
+    }
+  } catch (err) {
+    // offline or no backend
+    imagesList = Object.keys(stateMapping).map(k => ({id: k, filename: `images/${k}.jpg`, alt: k}));
+  }
+
+  // Build images list (shuffled)
+  const shuffle = arr => {
+    for (let i = arr.length-1; i>0; i--) {
+      const j = Math.floor(Math.random()*(i+1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  };
+
+  let draggedItem = null;
+  let selectedImageForKeyboard = null; // for keyboard accessibility
+
+  function initializeGame() {
+    imageContainer.innerHTML = '';
+    messageArea.textContent = 'Drag a picture to the correct state!';
+    shuffle(imagesList).forEach(img => {
+      const el = document.createElement('img');
+      el.src = img.filename.startsWith('http') || img.filename.startsWith('/') ? img.filename : `images/${img.id}.jpg`;
+      el.className = 'draggable-img';
+      el.draggable = true;
+      el.id = img.id;
+      el.dataset.state = stateMapping[img.id];
+      el.alt = img.alt || img.id;
+      el.tabIndex = 0;
+      imageContainer.appendChild(el);
+
+      // Desktop drag
+      el.addEventListener('dragstart', e => {
+        draggedItem = e.target;
+        e.dataTransfer.setData('text/plain', draggedItem.id);
+      });
+
+      // Click to select for keyboard drop
+      el.addEventListener('click', () => {
+        // toggle selection
+        document.querySelectorAll('.draggable-img.selected').forEach(x => x.classList.remove('selected'));
+        el.classList.add('selected');
+        selectedImageForKeyboard = el;
+        messageArea.textContent = `Selected ${el.alt}. Now press Enter on a state to drop.`;
+      });
+
+      // Touch fallback
+      el.addEventListener('touchstart', e => {
+        draggedItem = e.target;
+        e.target.classList.add('dragging-touch');
+      }, {passive: true});
+      el.addEventListener('touchend', e => {
+        e.target.classList.remove('dragging-touch');
+        // determine drop target
+        const touch = e.changedTouches[0];
+        const dropEl = document.elementFromPoint(touch.clientX, touch.clientY);
+        handleDropToState(draggedItem, dropEl);
+        draggedItem = null;
+      });
+    });
+
+    // Prepare map state elements for drop
+    document.querySelectorAll('.state').forEach(s => {
+      s.tabIndex = 0; // keyboard target
+      // highlight on dragover
+      s.addEventListener('dragover', e => e.preventDefault());
+      s.addEventListener('drop', e => {
+        e.preventDefault();
+        const id = e.target.closest('.state')?.id;
+        const draggedId = e.dataTransfer?.getData('text/plain') || (draggedItem && draggedItem.id);
+        if (!draggedId || !id) return;
+        const draggedEl = document.getElementById(draggedId);
+        handleDropToState(draggedEl, s);
+      });
+
+      // Keyboard: Enter to drop selected image
+      s.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && selectedImageForKeyboard) {
+          handleDropToState(selectedImageForKeyboard, s);
+          selectedImageForKeyboard.classList.remove('selected');
+          selectedImageForKeyboard = null;
+        }
+      });
+    });
+
+    updateProgress();
+  }
+
+  function handleDropToState(imgEl, targetEl) {
+    if (!imgEl || !targetEl) return;
+    const droppedStateId = targetEl.closest('.state')?.id;
+    if (!droppedStateId) return;
+    if (imgEl.dataset.state === droppedStateId) {
+      // correct
+      messageArea.textContent = '✅ Correct!';
+      targetEl.classList.add('correct');
+      imgEl.style.display = 'none';
+      // check finished
+      setTimeout(() => {
+        if ([...imageContainer.querySelectorAll('.draggable-img')].every(i => i.style.display === 'none')) {
+          messageArea.textContent = '🎉 You did it! All correct!';
+          // optionally send score if API available
+        } else updateProgress();
+      }, 300);
+    } else {
+      // incorrect
+      messageArea.textContent = '❌ Incorrect — try again!';
+      targetEl.classList.add('incorrect');
+      setTimeout(() => targetEl.classList.remove('incorrect'), 900);
+    }
+  }
+
+  function updateProgress() {
+    const total = imagesList.length;
+    const remaining = [...imageContainer.querySelectorAll('.draggable-img')].filter(i => i.style.display !== 'none').length;
+    progressSpan.textContent = `${total-remaining}/${total} correct`;
+  }
+
+  // Restart
+  restartBtn.addEventListener('click', () => {
+    // reveal all images and reset state colors
+    document.querySelectorAll('.draggable-img').forEach(i => i.style.display = '');
+    document.querySelectorAll('.state').forEach(s => s.classList.remove('correct','incorrect'));
+    initializeGame();
+  });
+
+  // initialize
+  initializeGame();
+});

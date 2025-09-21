@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Guess the State — Incredible India</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>Guess the State!</h1>
+    <p>Drag the picture onto the correct state (or tap & drop on mobile).</p>
+  </header>
+
+  <main>
+    <div id="game-container">
+      <div id="map-container" aria-label="Map of India">
+        <!-- PASTE YOUR INDIA SVG HERE (each state path must have class="state" and a unique id)
+             e.g. <path id="uttar-pradesh" class="state" d="..." /> -->
+      </div>
+
+      <aside id="image-container" aria-label="Draggable images"></aside>
+    </div>
+
+    <div id="message-area" role="status" aria-live="polite"></div>
+    <div id="controls">
+      <button id="restart-btn">Restart</button>
+      <span id="progress"></span>
+    </div>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
+<main>
+        <div id="game-container">
+            <div id="map-container">
+                <a href="https://upload.wikimedia.org/wikipedia/commons/7/74/India-map-en.svg">
+                    <img alt="File:India-map-en.svg" src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/74/India-map-en.svg/960px-India-map-en.svg.png?20240819195922" 
+                    decoding="async" width="514" height="600" srcset="https://upload.wikimedia.org/wikipedia/commons/thumb/7/74/India-map-en.svg/1028px-India-map-en.svg.png?20240819195922 2x" 
+                    data-file-width="1519" data-file-height="1773">
+                    </a>
